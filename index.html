@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Escala → Calendário</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0f; --surface: #13131a; --surface2: #1c1c28;
+    --accent: #6ee7b7; --accent2: #818cf8; --text: #e2e8f0;
+    --muted: #64748b; --danger: #f87171; --border: #2d2d3d;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif;
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+    padding: 40px 20px;
+    background-image: radial-gradient(ellipse at 20% 0%, rgba(110,231,183,0.06) 0%, transparent 60%),
+                      radial-gradient(ellipse at 80% 100%, rgba(129,140,248,0.06) 0%, transparent 60%);
+  }
+  header { text-align: center; margin-bottom: 48px; animation: fadeDown 0.6s ease both; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(110,231,183,0.1); border: 1px solid rgba(110,231,183,0.25);
+    color: var(--accent); font-family: 'Space Mono', monospace; font-size: 11px;
+    padding: 4px 12px; border-radius: 999px; margin-bottom: 16px; letter-spacing: 0.05em;
+  }
+  h1 { font-size: clamp(28px,5vw,44px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
+  h1 span { color: var(--accent); }
+  .subtitle { margin-top: 10px; color: var(--muted); font-size: 15px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 32px; width: 100%; max-width: 540px;
+    animation: fadeUp 0.6s ease both;
+  }
+  .card + .card { margin-top: 20px; animation-delay: 0.1s; }
+  .section-label {
+    font-family: 'Space Mono', monospace; font-size: 10px;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px;
+  }
+  .dropzone {
+    border: 2px dashed var(--border); border-radius: 12px; padding: 36px 24px;
+    text-align: center; cursor: pointer; transition: all 0.2s; position: relative;
+  }
+  .dropzone:hover, .dropzone.drag { border-color: var(--accent); background: rgba(110,231,183,0.04); }
+  .dropzone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .drop-icon { font-size: 32px; margin-bottom: 10px; display: block; }
+  .dropzone p { color: var(--muted); font-size: 14px; }
+  .dropzone p strong { color: var(--text); }
+  .field { margin-bottom: 18px; }
+  .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .field input {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px; color: var(--text);
+    font-family: 'Space Mono', monospace; font-size: 14px; outline: none; transition: border-color 0.2s;
+  }
+  .field input:focus { border-color: var(--accent); }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .hint { font-size: 11px; color: var(--muted); margin-top: 5px; font-family: 'Space Mono', monospace; }
+  .btn {
+    width: 100%; padding: 14px; border-radius: 10px; border: none;
+    font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px;
+    cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn-primary { background: var(--accent); color: #0a0a0f; }
+  .btn-primary:hover { filter: brightness(1.1); transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .btn-cal { background: #4285f4; color: white; margin-top: 12px; }
+  .btn-cal:hover { filter: brightness(1.1); transform: translateY(-1px); }
+  #results { display: none; }
+  .shifts-list {
+    display: flex; flex-direction: column; gap: 8px;
+    max-height: 280px; overflow-y: auto; padding-right: 4px;
+  }
+  .shifts-list::-webkit-scrollbar { width: 4px; }
+  .shifts-list::-webkit-scrollbar-track { background: var(--surface2); border-radius: 4px; }
+  .shifts-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  .shift-item {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px;
+    display: flex; align-items: center; gap: 10px; font-size: 14px;
+    animation: fadeUp 0.3s ease both;
+  }
+  .shift-item .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+  .shift-date { font-family: 'Space Mono', monospace; font-size: 13px; }
+  .shift-time { color: var(--accent2); font-size: 12px; margin-left: auto; font-family: 'Space Mono', monospace; }
+  .count-badge {
+    display: inline-flex; background: rgba(110,231,183,0.12); color: var(--accent);
+    border-radius: 6px; padding: 2px 10px;
+    font-family: 'Space Mono', monospace; font-size: 13px; font-weight: 700; margin-left: 8px;
+  }
+  #log {
+    font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted);
+    margin-top: 16px; line-height: 1.8; border-top: 1px solid var(--border);
+    padding-top: 14px; display: none;
+  }
+  #log .ok { color: var(--accent); }
+  .progress-bar {
+    height: 3px; background: var(--surface2); border-radius: 999px;
+    margin-top: 16px; overflow: hidden; display: none;
+  }
+  .progress-fill {
+    height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 999px; width: 0%; transition: width 0.4s ease;
+  }
+  .spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid rgba(0,0,0,0.2); border-top-color: #0a0a0f;
+    border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle;
+  }
+  .status { margin-top: 12px; font-size: 13px; text-align: center; color: var(--muted); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes fadeDown { from { opacity:0; transform:translateY(-16px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes fadeUp   { from { opacity:0; transform:translateY(16px);  } to { opacity:1; transform:translateY(0); } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="badge">🚒 Bombeiros de Izeda</div>
+  <h1>Escala → <span>Calendário</span></h1>
+  <p class="subtitle">Importa os teus turnos de noite para o Google Calendar</p>
+</header>
+
+<div class="card">
+  <div class="section-label">01 — Ficheiro PDF da escala</div>
+  <div class="dropzone" id="dropzone">
+    <input type="file" id="fileInput" accept=".pdf">
+    <span class="drop-icon">📄</span>
+    <p><strong>Clica ou arrasta</strong> o PDF aqui</p>
+    <p style="font-size:12px;margin-top:4px;">Ordem de Serviço — Bombeiros Voluntários de Izeda</p>
+  </div>
+  <div class="status" id="fileStatus"></div>
+</div>
+
+<div class="card">
+  <div class="section-label">02 — O teu nome e horário</div>
+
+  <div class="field">
+    <label>O teu nome (como aparece na escala)</label>
+    <input type="text" id="myName" placeholder="ex: Oscar, Pedro, Rui Dias…">
+    <div class="hint">Usa o mesmo nome ou abreviatura que está no PDF</div>
+  </div>
+
+  <div class="row">
+    <div class="field">
+      <label>Início do turno</label>
+      <input type="time" id="startTime" value="19:00">
+    </div>
+    <div class="field">
+      <label>Fim do turno</label>
+      <input type="time" id="endTime" value="07:00">
+    </div>
+  </div>
+
+  <button class="btn btn-primary" id="parseBtn" onclick="parseFile()" disabled>
+    🔍 Encontrar os meus turnos
+  </button>
+  <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+</div>
+
+<div class="card" id="results">
+  <div class="section-label">03 — Os meus turnos de noite <span class="count-badge" id="countBadge">0</span></div>
+  <div class="shifts-list" id="shiftsList"></div>
+  <button class="btn btn-cal" onclick="exportToCalendar()">
+    📅 Adicionar ao Calendário
+  </button>
+  <div id="log"></div>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+let parsedShifts = [];
+let fileData = null;
+
+const fileInput  = document.getElementById('fileInput');
+const dropzone   = document.getElementById('dropzone');
+const parseBtn   = document.getElementById('parseBtn');
+const fileStatus = document.getElementById('fileStatus');
+
+fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault(); dropzone.classList.remove('drag');
+  handleFile(e.dataTransfer.files[0]);
+});
+
+function handleFile(file) {
+  if (!file) return;
+  fileStatus.textContent = `✅ ${file.name} carregado`;
+  fileStatus.style.color = 'var(--accent)';
+  parseBtn.disabled = false;
+  const reader = new FileReader();
+  reader.onload = e => { fileData = e.target.result; };
+  reader.readAsArrayBuffer(file);
+}
+
+async function parseFile() {
+  const myName = document.getElementById('myName').value.trim();
+  if (!myName) { alert('Por favor insere o teu nome.'); return; }
+  if (!fileData) return;
+
+  parseBtn.disabled = true;
+  parseBtn.innerHTML = '<span class="spinner"></span> A analisar…';
+  showProgress(20);
+
+  try {
+    const pdf = await pdfjsLib.getDocument({ data: fileData.slice(0) }).promise;
+    showProgress(40);
+
+    // Extract all text items with position
+    let items = [];
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const vp = page.getViewport({ scale: 1 });
+      const content = await page.getTextContent();
+      content.items.forEach(item => {
+        const t = item.str.trim();
+        if (!t) return;
+        items.push({
+          text: t,
+          x: item.transform[4],
+          // flip y so y increases downward
+          y: vp.height - item.transform[5],
+          w: item.width
+        });
+      });
+    }
+
+    showProgress(65);
+    parsedShifts = findMyShifts(items, myName);
+    showProgress(100);
+    displayResults(myName);
+
+  } catch(e) {
+    fileStatus.textContent = '❌ Erro: ' + e.message;
+    fileStatus.style.color = 'var(--danger)';
+    console.error(e);
+    showProgress(0);
+  } finally {
+    parseBtn.disabled = false;
+    parseBtn.innerHTML = '🔍 Encontrar os meus turnos';
+  }
+}
+
+function findMyShifts(items, myName) {
+  const nameLower = myName.toLowerCase();
+
+  // ── 1. Detect year and month from PDF text ──
+  const fullText = items.map(i => i.text).join(' ');
+  const monthNames = ['janeiro','fevereiro','março','abril','maio','junho',
+                      'julho','agosto','setembro','outubro','novembro','dezembro'];
+  let month = new Date().getMonth();
+  let year  = new Date().getFullYear();
+  const ftLower = fullText.toLowerCase();
+  monthNames.forEach((m, idx) => { if (ftLower.includes(m)) month = idx; });
+  const ym = fullText.match(/\b(202\d)\b/);
+  if (ym) year = parseInt(ym[1]);
+
+  // ── 2. Find the day-header row (row containing sequential numbers like 2,3,4…17) ──
+  // Group items by y-band (5px tolerance)
+  const rowMap = {};
+  items.forEach(item => {
+    const band = Math.round(item.y / 5) * 5;
+    if (!rowMap[band]) rowMap[band] = [];
+    rowMap[band].push(item);
+  });
+
+  // Find the row that has the most day numbers (integers 1–31)
+  let dayRow = null;
+  let maxDays = 0;
+  for (const [band, its] of Object.entries(rowMap)) {
+    const nums = its.filter(i => /^\d{1,2}$/.test(i.text) && +i.text >= 1 && +i.text <= 31);
+    if (nums.length > maxDays) { maxDays = nums.length; dayRow = { band: +band, items: nums }; }
+  }
+
+  if (!dayRow || dayRow.items.length < 2) return [];
+
+  // Sort day items by x → gives us column positions
+  dayRow.items.sort((a, b) => a.x - b.x);
+  const cols = dayRow.items.map(i => ({ day: +i.text, x: i.x }));
+  const colWidth = cols.length > 1
+    ? (cols[cols.length-1].x - cols[0].x) / (cols.length - 1)
+    : 40;
+
+  // ── 3. Locate the "Noite" section ──
+  // Find items with "Noite" or the time "19H00" below the day row
+  const noiteItem = items
+    .filter(i => i.y > dayRow.band && (/noite/i.test(i.text) || /19[Hh]00/.test(i.text)))
+    .sort((a, b) => a.y - b.y)[0];
+
+  if (!noiteItem) return [];
+  const noiteY = noiteItem.y;
+
+  // Find start of next section below Noite (Hemodiálise, Férias, or similar label)
+  const nextSection = items
+    .filter(i => i.y > noiteY + 5 && (/hemodiálise/i.test(i.text) || /férias/i.test(i.text) || /formação/i.test(i.text) || /baixa/i.test(i.text)))
+    .sort((a, b) => a.y - b.y)[0];
+
+  const noiteEndY = nextSection ? nextSection.y : noiteY + 300;
+
+  // ── 4. Find my name inside the Noite band ──
+  const noiteBandItems = items.filter(i => i.y >= noiteY && i.y < noiteEndY);
+
+  const myItems = noiteBandItems.filter(i => {
+    const t = i.text.toLowerCase();
+    // Match if the item text is contained in my name or my name contains it (min 3 chars)
+    return t === nameLower ||
+           (t.length >= 3 && nameLower.includes(t)) ||
+           (nameLower.length >= 3 && t.includes(nameLower));
+  });
+
+  if (!myItems.length) return [];
+
+  // ── 5. Map each name occurrence to its column (day) ──
+  const shifts = [];
+  myItems.forEach(item => {
+    // Find the column whose x is closest to this item's x center
+    const cx = item.x + item.w / 2;
+    let best = null, bestDist = Infinity;
+    cols.forEach(col => {
+      const dist = Math.abs(cx - (col.x + colWidth / 2));
+      if (dist < bestDist) { bestDist = dist; best = col; }
+    });
+
+    // Allow up to 1.5 column widths of tolerance
+    if (best && bestDist < colWidth * 1.5) {
+      const date = new Date(year, month, best.day);
+      if (!isNaN(date)) shifts.push(date);
+    }
+  });
+
+  // Deduplicate
+  const seen = new Set();
+  return shifts.filter(d => {
+    const k = d.toDateString();
+    if (seen.has(k)) return false;
+    seen.add(k); return true;
+  });
+}
+
+function displayResults(name) {
+  const list    = document.getElementById('shiftsList');
+  const count   = document.getElementById('countBadge');
+  const results = document.getElementById('results');
+
+  list.innerHTML = '';
+  count.textContent = parsedShifts.length;
+  results.style.display = 'block';
+
+  if (!parsedShifts.length) {
+    list.innerHTML = `<div style="color:var(--muted);font-size:14px;text-align:center;padding:20px;">
+      Nenhum turno encontrado para "<strong style="color:var(--text)">${name}</strong>".<br><br>
+      Verifica se o nome corresponde exatamente ao que está na escala.
+    </div>`;
+    return;
+  }
+
+  const start = document.getElementById('startTime').value;
+  const end   = document.getElementById('endTime').value;
+
+  parsedShifts.sort((a,b) => a-b).forEach((date, i) => {
+    const item = document.createElement('div');
+    item.className = 'shift-item';
+    item.style.animationDelay = (i * 0.05) + 's';
+    item.innerHTML = `
+      <div class="dot"></div>
+      <span class="shift-date">${formatDate(date)}</span>
+      <span class="shift-time">${start} → ${end}</span>`;
+    list.appendChild(item);
+  });
+}
+
+function formatDate(d) {
+  const days   = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function exportToCalendar() {
+  if (!parsedShifts.length) return;
+  const name  = document.getElementById('myName').value.trim();
+  const start = document.getElementById('startTime').value;
+  const end   = document.getElementById('endTime').value;
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+
+  const log = document.getElementById('log');
+  log.style.display = 'block';
+  log.innerHTML = '<span class="ok">A preparar eventos…</span><br>';
+
+  let ics = `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//BV Izeda//PT\nCALSCALE:GREGORIAN\nMETHOD:PUBLISH\n`;
+
+  parsedShifts.forEach(date => {
+    const s = new Date(date); s.setHours(sh, sm, 0, 0);
+    const e = new Date(date);
+    if (eh < sh || (eh === sh && em < sm)) e.setDate(e.getDate() + 1);
+    e.setHours(eh, em, 0, 0);
+    ics += `BEGIN:VEVENT\nUID:noite-${date.getTime()}@bvizeda\nSUMMARY:🚒 Turno Noite — ${name}\nDTSTART:${icsDate(s)}\nDTEND:${icsDate(e)}\nDESCRIPTION:Bombeiros Voluntários de Izeda\nEND:VEVENT\n`;
+    log.innerHTML += `<span class="ok">✓</span> ${formatDate(date)}<br>`;
+  });
+
+  ics += 'END:VCALENDAR';
+
+  // On iOS, using a data URI with text/calendar opens the Calendar app directly
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+  if (isIOS) {
+    // data: URI approach — iOS Safari opens Calendar app
+    const dataUri = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
+    window.location.href = dataUri;
+    log.innerHTML += `<br><span class="ok">✅ O Calendário deve abrir automaticamente!</span><br>
+<span>Carrega em "Adicionar todos" para confirmar.</span>`;
+  } else {
+    // Desktop/Android fallback: download the file
+    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = `escala-noite-${name.replace(/\s+/g,'-')}.ics`; a.click();
+    URL.revokeObjectURL(url);
+    log.innerHTML += `<br><span class="ok">✅ Ficheiro descarregado!</span><br>
+<span>Abre o ficheiro .ics para importar para o Calendário.</span>`;
+  }
+}
+
+function icsDate(d) {
+  const p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}T${p(d.getHours())}${p(d.getMinutes())}00`;
+}
+
+function showProgress(pct) {
+  const bar  = document.getElementById('progressBar');
+  const fill = document.getElementById('progressFill');
+  bar.style.display = 'block';
+  fill.style.width  = pct + '%';
+  if (pct >= 100 || pct === 0) setTimeout(() => { bar.style.display = 'none'; fill.style.width = '0%'; }, 800);
+}
+</script>
+
+</body>
+</html>
