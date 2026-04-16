@@ -401,7 +401,7 @@ function exportToCalendar() {
     const e = new Date(date);
     if (eh < sh || (eh === sh && em < sm)) e.setDate(e.getDate() + 1);
     e.setHours(eh, em, 0, 0);
-    ics += `BEGIN:VEVENT\nUID:noite-${date.getTime()}@bvizeda\nSUMMARY:🚒 Turno Noite — ${name}\nDTSTART:${icsDate(s)}\nDTEND:${icsDate(e)}\nDESCRIPTION:Bombeiros Voluntários de Izeda\nEND:VEVENT\n`;
+    ics += `BEGIN:VEVENT\nUID:noite-${date.getTime()}@bvizeda\nSUMMARY:Escala Saúde\nDTSTART:${icsDate(s)}\nDTEND:${icsDate(e)}\nDESCRIPTION:Bombeiros Voluntários de Izeda\nEND:VEVENT\n`;
     log.innerHTML += `<span class="ok">✓</span> ${formatDate(date)}<br>`;
   });
 
